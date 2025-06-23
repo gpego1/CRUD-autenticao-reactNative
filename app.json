@@ -14,11 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.fiec.produtos",
+      "bundleIdentifier": "com.fiec.produtosApp",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
-      "package": "com.fiec.produtos",
+      "package": "com.fiec.produtosapp",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -39,10 +39,7 @@
       }
     },
     "plugins": [
-  "expo-router",
-  "@react-native-firebase/app",
-  "@react-native-firebase/auth",
-  "@react-native-firebase/firestore"
+      "expo-router"
 ],
     "experiments": {
       "typedRoutes": true

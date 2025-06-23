@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "771998718087",
+    "project_id": "produtosapp-61cf0",
+    "storage_bucket": "produtosapp-61cf0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:771998718087:android:804b38f24e0787994e8022",
+        "android_client_info": {
+          "package_name": "ocm.fiec.produtos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkEXp1Fdgk0BMz45WKILnZemJIBXpxYGw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
