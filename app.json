@@ -14,25 +14,43 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.fiec.produtos",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
+      "package": "com.fiec.produtos",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "config": {
+        "firebase": {
+          "apiKey": "AIzaSyBlRxivvC3nn95YtPc1eOgMNP09IHe5uGg",
+          "authDomain": "produtosapp-61cf0.firebaseapp.com",
+          "projectId": "produtosapp-61cf0",
+          "storageBucket": "produtosapp-61cf0.firebasestorage.app",
+          "messagingSenderId": "771998718087",
+          "appId": "1:771998718087:web:8e27f0d6e23d92d94e8022"
+        }
+      }
     },
     "plugins": [
-      "expo-router"
-    ],
+  "expo-router",
+  "@react-native-firebase/app",
+  "@react-native-firebase/auth",
+  "@react-native-firebase/firestore"
+],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d627a6a6-b3eb-4c4e-b6cf-ac17034906f8"
+      }
     }
   }
 }
