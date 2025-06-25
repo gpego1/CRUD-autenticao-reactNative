@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Alert,
+    ActivityIndicator,
+    StyleSheet
+} from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../../config/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-
-// IMPORTANTE: importe isso antes do uuid para "polyfill" do getRandomValues no React Native
-import 'react-native-get-random-values';
-
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'react-native-bcrypt';
 
@@ -22,17 +25,14 @@ export default function RegisterScreen() {
             Alert.alert('Erro', 'Por favor, preencha todos os campos');
             return;
         }
-
         if (password !== confirmPassword) {
             Alert.alert('Erro', 'As senhas não coincidem');
             return;
         }
-
         if (password.length < 6) {
             Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
             return;
         }
-
         if (!email.includes('@') || !email.includes('.')) {
             Alert.alert('Erro', 'Por favor, insira um email válido');
             return;
@@ -41,50 +41,51 @@ export default function RegisterScreen() {
         setLoading(true);
 
         try {
-            // Gera um userId único usando uuid
             const userId = uuidv4();
+            const normalizedEmail = email.toLowerCase().trim();
 
-            // Hashea a senha
+            // Referência correta para o documento do email
+            const emailRef = doc(
+                db,
+                'artifacts',
+                '1:771998718087:web:8e27f0d6e23d92d94e8022',
+                'emails',
+                normalizedEmail
+            );
+            const existing = await getDoc(emailRef);
+            if (existing.exists()) {
+                throw new Error('Este email já está cadastrado.');
+            }
+
             const salt = bcrypt.genSaltSync(10);
             const hashedPassword = bcrypt.hashSync(password, salt);
 
-            // Verifica se o email já existe
-            const emailDoc = await getDoc(doc(db, 'artifacts/1:771998718087:web:8e27f0d6e23d92d94e8022/emails', email.toLowerCase().trim()));
-            if (emailDoc.exists()) {
-                Alert.alert('Erro', 'Este email já está cadastrado');
-                setLoading(false);
-                return;
-            }
+            // Referência correta para o documento do usuário
+            await setDoc(
+                doc(
+                    db,
+                    'artifacts',
+                    '1:771998718087:web:8e27f0d6e23d92d94e8022',
+                    'users',
+                    userId
+                ),
+                {
+                    uid: userId,
+                    email: normalizedEmail,
+                    password: hashedPassword,
+                    createdAt: new Date().toISOString(),
+                }
+            );
 
-            // Cria documento do usuário
-            const userDocRef = doc(db, `artifacts/1:771998718087:web:8e27f0d6e23d92d94e8022/users/${userId}`);
-            await setDoc(userDocRef, {
-                uid: userId,
-                email: email.toLowerCase().trim(),
-                password: hashedPassword,
-                createdAt: new Date().toISOString(),
-                lastLogin: null
-            });
+            await setDoc(emailRef, { userId });
 
-            // Cria referência do email para garantir unicidade
-            await setDoc(doc(db, 'artifacts/1:771998718087:web:8e27f0d6e23d92d94e8022/emails', email.toLowerCase().trim()), {
-                userId: userId,
-                createdAt: new Date().toISOString()
-            });
+            Alert.alert('Sucesso', 'Cadastro realizado! Faça login para continuar.');
 
-            // Salva sessão do usuário localmente
-            await AsyncStorage.setItem('userToken', JSON.stringify({
-                uid: userId,
-                email: email.toLowerCase().trim(),
-                loggedInAt: new Date().toISOString()
-            }));
-
-            // Navega para tela de produtos após sucesso
-            router.replace('/(app)/products');
+            // Redireciona para a tela de login, sem criar sessão automaticamente
+            router.replace('/(auth)/login');
 
         } catch (error) {
-            console.error('Erro no registro:', error);
-            Alert.alert('Erro', error.message || 'Ocorreu um erro ao registrar');
+            Alert.alert('Erro', error.message || 'Erro ao registrar');
         } finally {
             setLoading(false);
         }
@@ -92,21 +93,22 @@ export default function RegisterScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Criar Conta</Text>
+            <Text style={styles.title}>Nova Conta</Text>
 
             <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder="E-mail"
+                placeholderTextColor="#999"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                autoCorrect={false}
             />
 
             <TextInput
                 style={styles.input}
-                placeholder="Senha (mínimo 6 caracteres)"
+                placeholder="Senha"
+                placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -115,78 +117,81 @@ export default function RegisterScreen() {
             <TextInput
                 style={styles.input}
                 placeholder="Confirmar Senha"
+                placeholderTextColor="#999"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
             />
 
             <TouchableOpacity
-                style={[styles.button, loading && styles.disabledButton]}
+                style={[styles.button, loading && styles.buttonDisabled]}
                 onPress={handleRegister}
                 disabled={loading}
             >
-                {loading ? (
-                    <ActivityIndicator color="#fff" />
-                ) : (
-                    <Text style={styles.buttonText}>Registrar</Text>
-                )}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Registrar</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => router.replace('/login')}
+                onPress={() => router.replace('/(auth)/login')}
+                style={styles.linkContainer}
             >
-                <Text style={styles.secondaryButtonText}>Já tem uma conta? Faça login</Text>
+                <Text style={styles.linkText}>Já tem uma conta? Faça login</Text>
             </TouchableOpacity>
         </View>
     );
 }
 
-const styles = {
+const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#F7FAFC',
+        paddingHorizontal: 28,
         justifyContent: 'center',
-        padding: 20,
-        backgroundColor: '#f5f5f5'
     },
     title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 30,
+        fontSize: 26,
+        color: '#2D3748',
+        fontWeight: '700',
+        marginBottom: 28,
         textAlign: 'center',
-        color: '#333'
     },
     input: {
-        height: 50,
+        height: 52,
+        backgroundColor: '#FFFFFF',
+        borderColor: '#E2E8F0',
         borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        marginBottom: 15,
-        backgroundColor: '#fff',
-        fontSize: 16
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        fontSize: 16,
+        marginBottom: 16,
+        color: '#2D3748',
     },
     button: {
-        backgroundColor: '#007bff',
-        height: 50,
-        borderRadius: 8,
+        backgroundColor: '#3182CE',
+        height: 52,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20
+        marginBottom: 20,
+        shadowColor: '#3182CE',
+        shadowOpacity: 0.25,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
     },
-    disabledButton: {
-        backgroundColor: '#cccccc'
+    buttonDisabled: {
+        backgroundColor: '#90CDF4',
     },
     buttonText: {
-        color: '#fff',
+        color: '#FFF',
         fontSize: 18,
-        fontWeight: '600'
+        fontWeight: '600',
     },
-    secondaryButton: {
-        alignSelf: 'center'
+    linkContainer: {
+        alignItems: 'center',
     },
-    secondaryButtonText: {
-        color: '#007bff',
-        fontSize: 16
-    }
-};
+    linkText: {
+        color: '#2B6CB0',
+        fontSize: 16,
+        fontWeight: '500',
+    },
+});

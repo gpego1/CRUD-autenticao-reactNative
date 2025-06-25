@@ -20,7 +20,7 @@ export default function LoginScreen() {
 
         try {
             await login(email, password);
-            // redirecionamento já ocorre dentro do contexto
+            // redirecionamento ocorre dentro do contexto AuthContext
         } catch (error) {
             console.error('Erro no login:', error);
             Alert.alert('Erro', error.message || 'Ocorreu um erro ao fazer login');
@@ -40,6 +40,7 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
             />
 
             <TextInput
@@ -48,6 +49,7 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                autoCorrect={false}
             />
 
             <TouchableOpacity
