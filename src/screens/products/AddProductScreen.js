@@ -1,54 +1,121 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
-import { useProducts } from '../../contexts/ProductsContext';
-import CustomAlert from '../common/CustomAlert';
-import { useRouter } from 'expo-router'; // Use useRouter aqui
+import React, { useState, useContext, useEffect } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ProductsContext } from '../../contexts/ProductsContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
-export default function AddProductScreen() {
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [description, setDescription] = useState('');
-  const [alertMessage, setAlertMessage] = useState(null);
-  const { addProduct, loadingProducts } = useProducts();
-  const router = useRouter(); // Use useRouter aqui
+const AddProductScreen = () => {
+    const { id, name: paramName, price: paramPrice, description: paramDescription } = useLocalSearchParams();
+    const isEditing = !!id;
 
-  const handleAddProduct = async () => {
-    if (!name || !price || !description) { setAlertMessage("Todos os campos são obrigatórios."); return; }
-    if (isNaN(parseFloat(price))) { setAlertMessage("O preço deve ser um número válido."); return; }
+    const [name, setName] = useState(paramName || '');
+    const [price, setPrice] = useState(paramPrice || '');
+    const [description, setDescription] = useState(paramDescription || '');
 
-    try {
-      await addProduct({ name, price: parseFloat(price), description });
-      setAlertMessage("Produto adicionado com sucesso!");
-      router.back(); // Use router.back()
-    } catch (err) {
-      setAlertMessage(err.message || "Erro ao adicionar produto.");
-    }
-  };
+    const { addProduct, deleteProduct } = useContext(ProductsContext);
+    const { user } = useContext(AuthContext);
 
-  return (
-    <View style={styles.formContainer}>
-      <Text style={styles.title}>Adicionar Produto</Text>
-      <TextInput style={styles.input} placeholder="Nome do Produto" value={name} onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Preço" value={price} onChangeText={setPrice} keyboardType="numeric" />
-      <TextInput style={[styles.input, styles.textArea]} placeholder="Descrição" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
-      <CustomAlert message={alertMessage} type="error" onConfirm={() => setAlertMessage(null)} visible={!!alertMessage} />
-      <TouchableOpacity style={styles.primaryButton} onPress={handleAddProduct} disabled={loadingProducts}>
-        {loadingProducts ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Adicionar Produto</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}> {/* Use router.back() */}
-        <Text style={styles.secondaryButtonText}>Voltar</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+    const handleAddOrUpdate = async () => {
+        if (!name || !price || !description) {
+            Alert.alert('Erro', 'Preencha todos os campos');
+            return;
+        }
+
+        try {
+            if (!user?.uid) throw new Error("Usuário não autenticado corretamente");
+
+            await addProduct({
+                name,
+                price: parseFloat(price),
+                description,
+                ...(isEditing && { id }), // Se estiver editando, inclui o ID
+            }, user.uid);
+
+            Alert.alert('Sucesso', isEditing ? 'Produto atualizado' : 'Produto adicionado', [
+                { text: 'OK', onPress: () => router.back() }
+            ]);
+        } catch (error) {
+            console.error("Erro:", error);
+            Alert.alert('Erro', error.message);
+        }
+    };
+
+    const handleDelete = async () => {
+        Alert.alert('Excluir Produto', 'Tem certeza que deseja excluir este produto?', [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+                text: 'Excluir',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        if (!user?.uid) throw new Error("Usuário não autenticado corretamente");
+                        await deleteProduct(user.uid, id);
+                        Alert.alert('Sucesso', 'Produto excluído com sucesso');
+                        router.back();
+                    } catch (error) {
+                        console.error('Erro ao excluir:', error);
+                        Alert.alert('Erro', error.message);
+                    }
+                }
+            }
+        ]);
+    };
+
+    return (
+        <View style={styles.container}>
+            <Text style={styles.title}>{isEditing ? 'Editar Produto' : 'Adicionar Produto'}</Text>
+            <TextInput
+                style={styles.input}
+                placeholder="Nome"
+                value={name}
+                onChangeText={setName}
+            />
+            <TextInput
+                style={styles.input}
+                placeholder="Preço"
+                value={price}
+                onChangeText={setPrice}
+                keyboardType="numeric"
+            />
+            <TextInput
+                style={[styles.input, styles.descriptionInput]}
+                placeholder="Descrição"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+            />
+            <Button title={isEditing ? "Atualizar" : "Salvar"} onPress={handleAddOrUpdate} />
+
+            {isEditing && (
+                <View style={{ marginTop: 20 }}>
+                    <Button title="Excluir Produto" color="red" onPress={handleDelete} />
+                </View>
+            )}
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
-  formContainer: { flex: 1, padding: 20, backgroundColor: '#f8f9fa', paddingTop: 20, },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, color: '#343a40', textAlign: 'center', },
-  input: { width: '100%', padding: 15, borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, marginBottom: 15, backgroundColor: '#ffffff', fontSize: 16, },
-  textArea: { minHeight: 100, textAlignVertical: 'top', },
-  primaryButton: { width: '100%', padding: 15, backgroundColor: '#28a745', borderRadius: 8, alignItems: 'center', marginBottom: 10, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, },
-  primaryButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', },
-  secondaryButton: { width: '100%', padding: 15, backgroundColor: '#6c757d', borderRadius: 8, alignItems: 'center', marginBottom: 10, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, },
-  secondaryButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', },
+    container: {
+        flex: 1,
+        padding: 20,
+    },
+    title: {
+        fontSize: 20,
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    input: {
+        height: 40,
+        borderColor: 'gray',
+        borderWidth: 1,
+        marginBottom: 15,
+        paddingHorizontal: 10,
+    },
+    descriptionInput: {
+        height: 100,
+        textAlignVertical: 'top',
+    },
 });
+
+export default AddProductScreen;

@@ -1,90 +1,141 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
-import { useProducts } from '../../contexts/ProductsContext';
-import CustomAlert from '../common/CustomAlert';
-import { useRouter, useLocalSearchParams } from 'expo-router'; // Use useRouter e useLocalSearchParams aqui
+import { useState, useContext, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { ProductsContext } from '../../contexts/ProductsContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function EditProductScreen() {
-  const { id: productId } = useLocalSearchParams(); // Pega o ID do produto da URL
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [description, setDescription] = useState('');
-  const [loadingInitialData, setLoadingInitialData] = useState(true);
-  const [alertMessage, setAlertMessage] = useState(null);
-  const { getProduct, updateProduct, loadingProducts } = useProducts();
-  const router = useRouter(); // Use useRouter aqui
+    const { id } = useLocalSearchParams();
+    const { products, updateProduct, deleteProduct } = useContext(ProductsContext);
+    const { user } = useContext(AuthContext);
 
-  useEffect(() => {
-    const fetchProductData = async () => {
-      setLoadingInitialData(true);
-      if (productId) {
-        try {
-          const product = await getProduct(productId);
-          if (product) {
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState('');
+    const [description, setDescription] = useState('');
+
+    useEffect(() => {
+        const product = products.find(p => p.id === id);
+        if (product) {
             setName(product.name);
             setPrice(product.price.toString());
             setDescription(product.description);
-          } else {
-            setAlertMessage("Produto não encontrado para edição.");
-          }
-        } catch (err) {
-          setAlertMessage(err.message || "Erro ao buscar dados do produto.");
         }
-      } else {
-        setAlertMessage("ID do produto não fornecido.");
-      }
-      setLoadingInitialData(false);
+    }, [id, products]);
+
+    const handleUpdateProduct = async () => {
+        if (!name || !price || !description) {
+            Alert.alert('Erro', 'Preencha todos os campos');
+            return;
+        }
+
+        if (!user?.uid) {
+            Alert.alert('Erro', 'Usuário não autenticado');
+            return;
+        }
+
+        try {
+            await updateProduct(id, {
+                name,
+                price: parseFloat(price),
+                description,
+            }, user.uid);
+            Alert.alert('Sucesso', 'Produto atualizado com sucesso');
+            router.back();
+        } catch (error) {
+            console.error('Erro ao atualizar produto:', error);
+            Alert.alert('Erro', 'Não foi possível atualizar o produto');
+        }
     };
-    fetchProductData();
-  }, [productId, getProduct]);
 
-  const handleUpdateProduct = async () => {
-    if (!name || !price || !description) { setAlertMessage("Todos os campos são obrigatórios."); return; }
-    if (isNaN(parseFloat(price))) { setAlertMessage("O preço deve ser um número válido."); return; }
+    const handleDeleteProduct = () => {
+        Alert.alert(
+            'Confirmar exclusão',
+            'Tem certeza que deseja excluir este produto?',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Excluir',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            if (!user?.uid) {
+                                Alert.alert('Erro', 'Usuário não autenticado');
+                                return;
+                            }
+                            await deleteProduct(user.uid, id);
+                            Alert.alert('Sucesso', 'Produto excluído com sucesso');
+                            router.back();
+                        } catch (error) {
+                            console.error('Erro ao excluir produto:', error);
+                            Alert.alert('Erro', error.message || 'Não foi possível excluir o produto');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
-    try {
-      await updateProduct(productId, { name, price: parseFloat(price), description });
-      setAlertMessage("Produto atualizado com sucesso!");
-      router.back(); // Use router.back()
-    } catch (err) {
-      setAlertMessage(err.message || "Erro ao atualizar produto.");
-    }
-  };
-
-  if (loadingInitialData) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-        <Text>Carregando dados do produto...</Text>
-      </View>
-    );
-  }
+        <View style={{ flex: 1, padding: 16 }}>
+            <Text style={{ fontSize: 16, marginBottom: 8 }}>Nome:</Text>
+            <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Nome do produto"
+            />
 
-  return (
-    <View style={styles.formContainer}>
-      <Text style={styles.title}>Editar Produto</Text>
-      <TextInput style={styles.input} placeholder="Nome do Produto" value={name} onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Preço" value={price} onChangeText={setPrice} keyboardType="numeric" />
-      <TextInput style={[styles.input, styles.textArea]} placeholder="Descrição" value={description} onChangeText={setDescription} multiline numberOfLines={4} />
-      <CustomAlert message={alertMessage} type="error" onConfirm={() => setAlertMessage(null)} visible={!!alertMessage} />
-      <TouchableOpacity style={styles.primaryButton} onPress={handleUpdateProduct} disabled={loadingProducts}>
-        {loadingProducts ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Atualizar Produto</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}> {/* Use router.back() */}
-        <Text style={styles.secondaryButtonText}>Voltar</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            <Text style={{ fontSize: 16, marginBottom: 8 }}>Preço:</Text>
+            <TextInput
+                style={styles.input}
+                value={price}
+                onChangeText={setPrice}
+                placeholder="Preço"
+                keyboardType="numeric"
+            />
+
+            <Text style={{ fontSize: 16, marginBottom: 8 }}>Descrição:</Text>
+            <TextInput
+                style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Descrição do produto"
+                multiline
+            />
+
+            <TouchableOpacity
+                onPress={handleUpdateProduct}
+                style={[styles.button, { backgroundColor: '#007bff', marginBottom: 12 }]}
+            >
+                <Text style={styles.buttonText}>Atualizar Produto</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                onPress={handleDeleteProduct}
+                style={[styles.button, { backgroundColor: '#F44336' }]}
+            >
+                <Text style={styles.buttonText}>Excluir Produto</Text>
+            </TouchableOpacity>
+        </View>
+    );
 }
 
-const styles = StyleSheet.create({
-  formContainer: { flex: 1, padding: 20, backgroundColor: '#f8f9fa', paddingTop: 20, },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f9fa', },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, color: '#343a40', textAlign: 'center', },
-  input: { width: '100%', padding: 15, borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, marginBottom: 15, backgroundColor: '#ffffff', fontSize: 16, },
-  textArea: { minHeight: 100, textAlignVertical: 'top', },
-  primaryButton: { width: '100%', padding: 15, backgroundColor: '#28a745', borderRadius: 8, alignItems: 'center', marginBottom: 10, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, },
-  primaryButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', },
-  secondaryButton: { width: '100%', padding: 15, backgroundColor: '#6c757d', borderRadius: 8, alignItems: 'center', marginBottom: 10, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, },
-  secondaryButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', },
-});
+const styles = {
+    input: {
+        height: 40,
+        borderColor: 'gray',
+        borderWidth: 1,
+        marginBottom: 16,
+        padding: 8,
+        borderRadius: 4
+    },
+    button: {
+        padding: 12,
+        borderRadius: 4,
+        alignItems: 'center'
+    },
+    buttonText: {
+        color: 'white',
+        fontWeight: 'bold'
+    }
+};

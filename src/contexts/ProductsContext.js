@@ -1,146 +1,144 @@
-// src/contexts/ProductsContext.js
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useAuth } from './AuthContext'; // Importa o hook do contexto de autenticação
-import {
-  subscribeToProducts,
-  addProduct,
-  getProduct,
-  updateProduct,
-  deleteProduct
-} from '../services/firestore/products.js';
+import React, { createContext, useState, useContext } from 'react';
+import { db } from '../config/firebase';
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore'; // Faltava importar getDoc
 
-const ProductsContext = createContext();
-
-// Hook personalizado para usar o contexto de produtos
-export const useProducts = () => {
-  return useContext(ProductsContext);
-};
+export const ProductsContext = createContext();
 
 export const ProductsProvider = ({ children }) => {
-  // Obtém o usuário e o status de carregamento da autenticação do AuthContext
-  const { user, loading: loadingAuth } = useAuth();
-  const [products, setProducts] = useState([]); // Estado para armazenar a lista de produtos
-  const [loadingProducts, setLoadingProducts] = useState(true); // Estado para indicar se os produtos estão carregando
-  const [error, setError] = useState(null); // Estado para armazenar mensagens de erro
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Efeito para subscrever aos produtos do usuário logado
-  useEffect(() => {
-    let unsubscribe; // Variável para armazenar a função de unsubscribe do Firestore
-
-    // Só tenta buscar produtos se o usuário estiver autenticado e com UID disponível
-    if (user && user.uid) {
-      setLoadingProducts(true); // Inicia o carregamento
-      setError(null); // Limpa erros anteriores
-
-      // Subscreve à coleção de produtos do usuário
-      unsubscribe = subscribeToProducts(
-        user.uid, // Passa a UID do usuário como userId
-        (productsData) => {
-          // Callback de sucesso: atualiza o estado com os produtos recebidos
-          setProducts(productsData);
-          setLoadingProducts(false); // Finaliza o carregamento
-        },
-        (err) => {
-          // Callback de erro: define a mensagem de erro
-          console.error("Erro ao carregar produtos:", err);
-          setError(err.message || "Ocorreu um erro ao carregar os produtos.");
-          setLoadingProducts(false); // Finaliza o carregamento
-        }
-      );
-    } else if (!loadingAuth) {
-      // Se não há usuário logado e a autenticação terminou de carregar, limpa os produtos
-      setProducts([]);
-      setLoadingProducts(false);
-      setError(null); // Garante que não haja erro se apenas deslogou
-    }
-
-    // Função de limpeza: cancela a inscrição quando o componente é desmontado ou dependências mudam
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [user, loadingAuth]); // Dependências: re-executa o efeito se o usuário ou o status de carregamento da autenticação mudar
-
-  // Função para adicionar um novo produto
-  const handleAddProduct = useCallback(async (productData) => {
-    if (!user) {
-      setError("Usuário não autenticado para adicionar produto.");
-      throw new Error("Usuário não autenticado.");
-    }
-    setError(null); // Limpa erros anteriores
-    try {
-      await addProduct(user.uid, productData); // Chama o serviço para adicionar produto
-    } catch (err) {
-      console.error("Erro ao adicionar produto:", err);
-      setError(err.message || "Erro ao adicionar produto.");
-      throw err; // Re-lança o erro para que o componente chamador possa lidar com ele
-    }
-  }, [user]); // Dependência: re-cria a função se o usuário mudar
-
-  // Função para obter detalhes de um produto específico
-  const handleGetProduct = useCallback(async (productId) => {
-    if (!user) {
-      setError("Usuário não autenticado para buscar produto.");
-      throw new Error("Usuário não autenticado.");
-    }
-    setError(null);
-    try {
-      return await getProduct(user.uid, productId); // Chama o serviço para buscar produto
-    } catch (err) {
-      console.error("Erro ao buscar produto:", err);
-      setError(err.message || "Erro ao buscar produto.");
-      throw err;
-    }
-  }, [user]); // Dependência: re-cria a função se o usuário mudar
-
-  // Função para atualizar um produto existente
-  const handleUpdateProduct = useCallback(async (productId, newData) => {
-    if (!user) {
-      setError("Usuário não autenticado para atualizar produto.");
-      throw new Error("Usuário não autenticado.");
-    }
-    setError(null);
-    try {
-      await updateProduct(user.uid, productId, newData); // Chama o serviço para atualizar produto
-    } catch (err) {
-      console.error("Erro ao atualizar produto:", err);
-      setError(err.message || "Erro ao atualizar produto.");
-      throw err;
-    }
-  }, [user]); // Dependência: re-cria a função se o usuário mudar
-
-  // Função para deletar um produto
-  const handleDeleteProduct = useCallback(async (productId) => {
-    if (!user) {
-      setError("Usuário não autenticado para deletar produto.");
-      throw new Error("Usuário não autenticado.");
-    }
-    setError(null);
-    try {
-      await deleteProduct(user.uid, productId); // Chama o serviço para deletar produto
-    } catch (err) {
-      console.error("Erro ao deletar produto:", err);
-      setError(err.message || "Erro ao deletar produto.");
-      throw err;
-    }
-  }, [user]); // Dependência: re-cria a função se o usuário mudar
-
-  // Valor do contexto que será provido para os componentes filhos
-  const value = {
-    products,
-    loadingProducts,
-    error,
-    addProduct: handleAddProduct,
-    getProduct: handleGetProduct,
-    updateProduct: handleUpdateProduct,
-    deleteProduct: handleDeleteProduct,
+  const getProductsPath = (userId) => {
+    if (!userId) throw new Error("ID do usuário é obrigatório");
+    return `artifacts/1:771998718087:web:8e27f0d6e23d92d94e8022/users/${userId}/products`;
   };
 
-  // Renderiza os filhos com o valor do contexto
+  const addProduct = async (productData, userId) => {
+    setLoading(true);
+    try {
+      if (!userId) throw new Error("Usuário não autenticado");
+      if (!productData?.name) throw new Error("Nome do produto é obrigatório");
+
+      const productsRef = collection(db, getProductsPath(userId));
+      const now = new Date().toISOString();
+
+      const docRef = await addDoc(productsRef, {
+        ...productData,
+        price: Number(productData.price),
+        createdAt: now,
+        updatedAt: now
+      });
+
+      const newProduct = { id: docRef.id, ...productData };
+      setProducts(prev => [...prev, newProduct]);
+
+      return newProduct;
+    } catch (error) {
+      console.error("Erro ao adicionar produto:", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getProduct = async (userId, productId) => {
+    if (!userId) throw new Error("Usuário não autenticado");
+    const productRef = doc(db, getProductsPath(userId), productId);
+    const productSnap = await getDoc(productRef);
+    if (!productSnap.exists()) throw new Error("Produto não encontrado");
+    return { id: productSnap.id, ...productSnap.data() };
+  };
+
+  const fetchProducts = async (userId) => {
+    setLoading(true);
+    try {
+      const productsRef = collection(db, getProductsPath(userId));
+      const snapshot = await getDocs(productsRef);
+      const productsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setProducts(productsData);
+      return productsData;
+    } catch (error) {
+      console.error("Erro ao buscar produtos:", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProduct = async (productId, productData, userId) => {
+    setLoading(true);
+    try {
+      if (!userId) throw new Error("Usuário não autenticado");
+      if (!productId) throw new Error("ID do produto é obrigatório");
+
+      const productRef = doc(db, getProductsPath(userId), productId);
+      const now = new Date().toISOString();
+
+      await updateDoc(productRef, {
+        ...productData,
+        price: Number(productData.price),
+        updatedAt: now
+      });
+
+      setProducts(prev => prev.map(p =>
+          p.id === productId ? { ...p, ...productData, price: Number(productData.price), updatedAt: now } : p
+      ));
+    } catch (error) {
+      console.error("Erro ao atualizar produto:", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteProduct = async (userId, productId) => {
+    setLoading(true);
+    try {
+      if (!userId) throw new Error("Usuário não autenticado");
+      if (!productId) throw new Error("ID do produto é obrigatório");
+
+      const productRef = doc(db, getProductsPath(userId), productId);
+      await deleteDoc(productRef);
+
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      console.log(`Produto ${productId} excluído com sucesso`);
+    } catch (error) {
+      console.error("Erro ao deletar produto:", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
-    <ProductsContext.Provider value={value}>
-      {children}
-    </ProductsContext.Provider>
+      <ProductsContext.Provider value={{
+        products,
+        loading,
+        error,
+        addProduct,
+        fetchProducts,
+        getProduct,
+        updateProduct,
+        deleteProduct
+      }}>
+        {children}
+      </ProductsContext.Provider>
   );
+};
+
+export const useProducts = () => {
+  const context = useContext(ProductsContext);
+  if (!context) {
+    throw new Error('useProducts must be used within a ProductsProvider');
+  }
+  return context;
 };

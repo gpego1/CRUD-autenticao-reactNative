@@ -12,7 +12,6 @@ config.server = {
     }
     return middleware(req, res, next);
   },
-  useGlobalWatchman: false
 };
 
 // Otimização para Windows

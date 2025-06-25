@@ -1,47 +1,186 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
-import { useAuth } from '../../contexts/AuthContext';
-import CustomAlert from '../common/CustomAlert';
-// Não é necessário useRouter aqui, pois o logout é tratado pelo AuthContext e _layout.js
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useContext } from 'react';
+import { ProductsContext } from '../../contexts/ProductsContext';
+import { AuthContext } from '../../contexts/AuthContext';
 
 export default function ProfileScreen() {
-  const { user, signOutUser, loading } = useAuth();
-  const [alertMessage, setAlertMessage] = useState(null);
+  const router = useRouter();
+  const { user, logout } = useContext(AuthContext);
+  const { products } = useContext(ProductsContext);
 
-  const handleLogout = async () => {
-    try {
-      await signOutUser();
-      setAlertMessage("Sessão encerrada com sucesso!");
-      // O redirecionamento para o login é tratado no app/_layout.js
-    } catch (err) {
-      setAlertMessage(err.message || "Erro ao fazer logout.");
-    }
+  const handleLogout = () => {
+    console.log('handleLogout chamado'); // DEBUG
+    Alert.alert(
+        'Sair',
+        'Tem certeza que deseja sair da sua conta?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Sair',
+            onPress: async () => {
+              try {
+                console.log('Logout iniciado'); // DEBUG
+                await logout();
+                console.log('Logout realizado com sucesso'); // DEBUG
+              } catch (error) {
+                console.error('Erro ao sair:', error);
+                Alert.alert('Erro', 'Não foi possível sair. Tente novamente.');
+              }
+            },
+          },
+        ],
+    );
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Perfil do Usuário</Text>
-      {user ? (
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileText}>E-mail: {user.email}</Text>
-          <Text style={styles.profileText}>UID: {user.uid}</Text>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.logoutButtonText}>Sair</Text>}
-          </TouchableOpacity>
+
+  if (!user) {
+    return (
+        <View style={styles.container}>
+          <Text>Carregando informações do usuário...</Text>
         </View>
-      ) : (
-        <Text style={styles.profileText}>Nenhum usuário logado.</Text>
-      )}
-      <CustomAlert message={alertMessage} onConfirm={() => setAlertMessage(null)} visible={!!alertMessage} />
-    </View>
+    );
+  }
+
+  return (
+      <View style={styles.container}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {user.email.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.userEmail}>{user.email}</Text>
+        </View>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{products.length}</Text>
+            <Text style={styles.statLabel}>Produtos cadastrados</Text>
+          </View>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.sectionTitle}>Informações da Conta</Text>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>ID do Usuário:</Text>
+            <Text style={styles.infoValue}>{user.uid}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Data de Criação:</Text>
+            <Text style={styles.infoValue}>
+              {user.createdAt
+                  ? new Date(user.createdAt).toLocaleDateString()
+                  : 'Indisponível'}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7} // para feedback visual no clique
+        >
+          <Text style={styles.logoutButtonText}>Sair da Conta</Text>
+        </TouchableOpacity>
+
+      </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f8f9fa', paddingTop: 20, alignItems: 'center', },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, color: '#343a40', textAlign: 'center', },
-  profileInfo: { backgroundColor: '#ffffff', borderRadius: 10, padding: 20, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2, },
-  profileText: { fontSize: 18, color: '#343a40', marginBottom: 10, textAlign: 'center', },
-  logoutButton: { width: '80%', padding: 12, backgroundColor: '#dc3545', borderRadius: 8, alignItems: 'center', marginTop: 20, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, },
-  logoutButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', },
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#007bff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  avatarText: {
+    color: 'white',
+    fontSize: 36,
+    fontWeight: 'bold',
+  },
+  userEmail: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 30,
+    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#007bff',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  infoContainer: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    color: '#333',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  infoLabel: {
+    fontSize: 16,
+    color: '#666',
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutButton: {
+    backgroundColor: '#dc3545',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 'auto',
+  },
+  logoutButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
